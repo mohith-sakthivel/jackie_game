@@ -48,7 +48,7 @@ class GameSession:
         self.start_player = None
         self.no_rounds = 0
         self.rounds = []
-        self.score = [None, 0]
+        self.score = [(None, None), 0]
         self.plr_dict = {}
         if teams is None:
             self.teams = (('Red', 'Red'), ('Blue', 'Blue'))

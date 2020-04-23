@@ -3,7 +3,7 @@ from tkinter import ttk, Menu
 from tkinter import messagebox as msg
 from game_env import GameSession, allowed_players
 # from help_text import help_text
-from pop_ups import PlayerSelectDialog
+from popups import PlayerSelectDialog
 from round import ManageRound
 
 
@@ -261,7 +261,3 @@ class GameGUI:
         self.cur_wager_team['text'] = team[0]
         self.cur_wager_team['foreground'] = team[1]
         self.cur_wager_pts['text'] = pts
-
-
-game_app = GameGUI()
-game_app.root.mainloop()

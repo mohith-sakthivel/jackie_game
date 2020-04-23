@@ -1,4 +1,4 @@
-from pop_ups import PlayerSelectDialog, GetNumInput
+from popups import GetNumInput,PlayerSelectDialog
 from tkinter import messagebox as msg
 
 
