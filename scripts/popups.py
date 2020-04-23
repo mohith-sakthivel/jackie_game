@@ -2,10 +2,17 @@ import tkinter as tk
 from tkinter import ttk
 
 
-class PlayerSelectDialog():
+class SelectDialog():
     """
         Creates a temporary popup box and returns the user
         input to the calling function
+
+        Parameters:
+        text (string) - Message to be displayed
+        options (list) - Options for the user to choose from
+        result (empty list) - output is returned through this list
+        op_type (str) - should be either 'radiobutton' or 'checkbox'
+        root (tk.tk()) - tk() object which would be set as master
     """
     def __init__(self, text, options, result, op_type, root=None):
 
@@ -22,32 +29,32 @@ class PlayerSelectDialog():
         msg_frame.pack(fill='both', expand=True)
 
         label = tk.Label(msg_frame, text=text)
-        label.pack(padx=4, pady=4)
+        label.grid(row=0, column=0, padx=4, pady=4)
 
         ok_btn = tk.Button(msg_frame, text="Ok", width=5, height=1)
 
         if op_type == 'checkbox':
             self.check_var = []
-            for i, value in enumerate(options):
+            for i, value in enumerate(options, 1):
                 self.check_var.append(tk.IntVar())
                 choices.append(tk.Checkbutton(
-                                              msg_frame, text="Player "+value,
+                                              msg_frame, text=value,
                                               variable=self.check_var[i]))
-                choices[i].deselect()
-                choices[i].pack()
+                choices[-1].deselect()
+                choices[-1].grid(row=i, column=0)
             ok_btn['command'] = lambda: self._cb_submit(result)
         else:
             self.var = tk.StringVar()
-            for value in options:
+            for i, value in enumerate(options, 1):
                 choices.append(tk.Radiobutton(
-                                              msg_frame, text="Player "+value,
+                                              msg_frame, text=value,
                                               variable=self.var,
                                               value=value, indicatoron=True))
-                choices[-1].pack()
+                choices[-1].grid(row=i, column=0)
             self.var.set(options[0])
             ok_btn['command'] = lambda: self._rb_submit(result)
 
-        ok_btn.pack(side=tk.BOTTOM, padx=4, pady=4)
+        ok_btn.grid(row=len(options)+1, column=0)
 
         self.top.transient(self.root)
         self.top.grab_set()

@@ -26,12 +26,12 @@ class GameSession:
     point_table = {"J": 3, "9": 2, "A": 1, "10": 1, "K": 0, "Q": 0}
     # Heirarchy of card keys in a suit
     heirarchy_table = {"J": 5, "9": 4, "A": 3, "10": 2, "K": 1, "Q": 0}
-    suits = {"Spade": 0, "Heart": 1, "Clubs": 2, "Diamond": 3}
+    suits = {"Spade": 0, "Heart": 1, "Club": 2, "Diamond": 3}
     # Base bet for the corresponding game
     base_bet = {2: 12, 3: 12, 4: 15, 6: 15, 8: 15}
 
     # Variables to retrieve value from index
-    suits_map = ("Spade", "Heart", "Clubs", "Diamond")
+    suits_map = ("Spade", "Heart", "Club", "Diamond")
     key_map = ("Q", "K", "10", "A", "9", "J")
 
     def __init__(self, no_players, teams=None):
@@ -76,10 +76,8 @@ class GameSession:
     def start_round(self):
         """
         Start a round of the game.
-        Also returns an instance of the class Round.
         """
         self.rounds.append(Round(self))
-        return self.rounds[-1]
 
     def get_start_player(self):
         """
@@ -117,22 +115,10 @@ class Round:
         self.wager = self.session.base_bet[self.session.no_players]
         self.open_goat = False
         self.wager_player = self.session.start_player
-        self.deal_cards()
-
-    def deal_cards(self):
-        """
-            Deal cards to the players in the game
-        """
-        values = np.arange(24)
-        np.random.shuffle(values)
-        i = 0
-        # Shuffle and deal cards to all the players
-        while i < 24:
-            for player in self.session.players:
-                player.add_card((
-                                 self.session.suits_map[values[i] // 6],
-                                 self.session.key_map[values[i] % 6]))
-                i = i + 1
+        self.start_player = self.session.start_player
+        self.no_passes = self.session.total_cards/self.session.no_players
+        self.passes_done = 0
+        self.play_history = [[] for _ in range(self.no_passes)]
 
     def update_wager(self, Player_ID, wager):
         """
@@ -157,10 +143,23 @@ class Round:
 
     def show_cards(self):
         """
-            Show the cards in all players' hand
+        Show the cards in all players' hand
         """
         for player in self.session.players:
             player.show_cards()
+
+    def get_wager_player(self):
+        """
+        Return the player who holds the current wager
+        """
+        return self.session.players[self.wager_player].ID
+
+    def process_pass(self):
+        """
+        Determine who won the pass and set the next the start player
+        Also updates other round related data
+        """
+        pass
 
 
 class Player:
@@ -209,6 +208,27 @@ class Player:
             print(card[0] + " " + card[1], end='\n')
         print()
 
+    def get_play_card(self, round):
+        """
+        Select the card to play for the current round
+        """
+        return ((None, None), None)
+
+
+def deal_cards(session):
+    """
+        Deal cards to the players in the game
+    """
+    values = np.arange(24)
+    np.random.shuffle(values)
+    i = 0
+    # Shuffle and deal cards to all the players
+    while i < 24:
+        for player in session.players:
+            player.add_card((
+                             session.suits_map[values[i] // 6],
+                             session.key_map[values[i] % 6]))
+            i = i + 1
 
 # game_sess = GameSession(4)
 # game_sess.start_round()
