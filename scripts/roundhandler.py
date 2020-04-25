@@ -1,4 +1,5 @@
 import vision
+import tkinter as tk
 from tkinter import messagebox as msg
 from popups import GetNumInput, SelectDialog
 from game import deal_cards
@@ -80,8 +81,22 @@ class ManageRound():
             self.__gui.update_wager(self.__round)
             if self.__round.open_goat:
                 break
+        self.__game_sess.players[self.__round.wager_player].stake_player = True
+        if self.__game_sess.players[self.__round.wager_player].user_control:
+            result = []
+            while not result:
+                popup = SelectDialog("Select the trump suit",
+                                     self.__game_sess.suits_map,
+                                     result, 'radiobutton', self.__gui.root)
+                self.__gui.root.wait_window(popup.top)
+                if result:
+                    self.__round.trump = result[0]
+        else:
+            self.__round.trump = \
+                self.__game_sess.players[self.__round.start_player].get_trump()
 
     def _start_play(self):
+        blvar = tk.BooleanVar()
         for pass_ in range(self.__round.no_passes):
             for i in range(
                            self.__round.start_player,
@@ -89,14 +104,54 @@ class ManageRound():
                 plr_index = i % self.plr_count
                 plr = self.__game_sess.players[plr_index]
                 if not plr.user_control:
-                    self.__round.play_history.append(
-                                plr.get_play_card(self.__round))
+                    # Get card played by the bot
+                    self.__round.set_play_card(
+                                               plr_index,
+                                               plr.get_play_card(self.__round))
+                    if (self.__round.trump_open and
+                            self.__round.trump_open_at ==
+                            (pass_+1, plr_index)):
+                        self.__gui.update_trump(self.__round.trump)
+                    self.__gui.update_bot_play(
+                                self.__round.play_history[pass_][-1])
                 elif self.__gui.game_mode == "Bot vs Users":
-                    self.__round.play_history.append(
-                                        vision.get_card_input)
+                    # Get card played by the user through camera
+                    self.__round.set_play_card(
+                                               plr_index,
+                                               vision.get_card_input())
                 else:
-                    self.__round.play_history.append(
-                                self.__gui.get_user_play_card(plr_index))
-                self.__round.process_pass()
-                self.__gui.post_pass_update(self.round__)
+                    # Get card played by the user through the GUI
+                    self.__round.set_play_card(
+                        plr_index,
+                        self.__gui.get_user_play_card(
+                                                      plr_index,
+                                                      self.__round,
+                                                      plr))
+                # Add a wait
+                self.__gui.root.after(
+                                      1500,
+                                      lambda: blvar.set(not blvar.get()))
+                self.__gui.root.wait_variable(blvar)
+            # Add a wait
+            self.__gui.root.after(
+                                  1000,
+                                  lambda: blvar.set(not blvar.get()))
+            self.__gui.root.wait_variable(blvar)
+            # Update the round for the cards played
+            round_status = self.__round.process_pass()
+            self.__gui.post_pass_update(self.__round)
+            if round_status[0]:
+                break
+        if (round_status[1] == 'W'):
+            text = "Team " + \
+                    self.__game_sess.teams[self.__round.wager_team][0] + \
+                    " won the round!"
+        elif (round_status[1] == 'L'):
+            text = "Team " + \
+                    self.__game_sess.teams[self.__round.wager_team][0] + \
+                    " lost the round!"
+        else:
+            text = "One team had all trump cards. Round is invalid."
+        msg.showinfo("Round Over!", text)
+        self.__gui.post_round_update(self.__round)
         # Check if game is won

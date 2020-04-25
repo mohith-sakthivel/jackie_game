@@ -2,8 +2,9 @@ import tkinter as tk
 from tkinter import ttk, Menu
 from tkinter import messagebox as msg
 from game import GameSession, allowed_players
-from round import ManageRound
+from roundhandler import ManageRound
 from popups import SelectDialog
+from PIL import Image, ImageTk
 
 
 class GameGUI:
@@ -18,8 +19,13 @@ class GameGUI:
                      8: ((0.05, 0.5), (0.25, 0), (0.5, 0), (0.75, 0),
                          (0.95, 0.5), (0.75, 1), (0.5, 1), (0.25, 1))}
     plr_space_wd = {4: 0.4, 6: 0.3, 8: 0.23}
-    plr_space_ht = {4: 0.25, 6: 0.3, 8: 0.3}
-    card_size = {4: 9, 6: 8, 8: 8}
+    plr_space_ht = {4: 0.225, 6: 0.3, 8: 0.3}
+    card_size = {4: (76, 114), 6: (88, 132), 8: (88, 132)}
+    card_loc = {4: ((-0.04, 0), (0, -0.175), (0.04, 0), (0, 0.175)),
+                6: ((-0.125, 0), (-0.04, -0.1), (0.04, -0.1), (0.125, 0),
+                    (0.04, 0.1), (-0.04, 0.1)),
+                8: ((-0.175, 0), (-0.08, -0.1), (0, -0.1), (0.08, -0.1),
+                    (0.175, 0), (0.08, 0.1), (0, 0.1), (-0.08, 0.1))}
 
     game_mode_options = ("Bot vs Users", "User vs Bots", "Bots Only")
 
@@ -32,11 +38,13 @@ class GameGUI:
         self.__cur_frame = None
         self.plr_count = 0
         self.game_mode = []
+        self.__card_imgs = {}
+        self.__suit_imgs = {}
+        self.__card_back = None
         # Create the menu widgets
         self._create_menu()
         # Start the application
         self._start_screen()
-        self.__card_imgs = {}
 
     def _quit(self):
         answer = msg.askyesno(
@@ -193,17 +201,8 @@ class GameGUI:
         self.sb_pt_lbl = tk.Label(
                                   self.scoreboard,
                                   font=('Helvetica', 12, 'bold'))
-        self.sb_team_lbl.grid(column=0, row=0)
-        self.sb_pt_lbl.grid(column=0, row=1)
-        # Display score if game is in progress
-        if (self.game_sess.no_rounds != 0):
-            self.sb_team_lbl['text'] = "Team " + self.game_sess.score[0][0]
-            self.sb_team_lbl['foreground'] = self.game_sess.score[0][1]
-            self.sb_pt_lbl['text'] = self.game_sess.score[1]
-        else:
-            if self.sb_team_lbl in self.scoreboard.grid_slaves():
-                self.sb_team_lbl.grid_remove()
-            self.sb_pt_lbl['text'] = '0'
+        self.sb_pt_lbl['text'] = '0'
+        self.sb_pt_lbl.grid(column=0, row=0, sticky=(tk.N, tk.S))
         # Create a button to start the round
         self.start_round = tk.Button(
                                      self.__cur_frame, text="Start Round",
@@ -221,7 +220,7 @@ class GameGUI:
                               relx=0.01, rely=0)
 
         self.round_no_lbl = tk.Label(
-                                     self.statboard, text='Round',
+                                     self.statboard, text='Round No. :',
                                      font=('Helvetica', 11, 'bold'))
         self.round_no = tk.Label(
                                  self.statboard, text='---',
@@ -272,6 +271,39 @@ class GameGUI:
         self.rnd_pts[1].grid(row=5, column=2)
         # Load images of the cards
         self._load_cards()
+        # Build the trump display area
+        self.trump_data = tk.LabelFrame(
+                                       self.__cur_frame, text="Trump",
+                                       font=('Helvetica', 11, 'bold'),
+                                       bd=8, labelanchor='n')
+        self.trump_data.place(
+                              anchor='sw', relwidth=0.1, relheight=0.2,
+                              relx=0.01, rely=1)
+        self.get_trump = tk.Button(
+                                   self.trump_data, text='Show Trump',
+                                   font=('Helvetica', 10, 'bold'),
+                                   command=self.show_trump)
+        self.cur_trump = tk.Label(self.trump_data)
+
+    def show_trump(self):
+        """Displays the trump on the GUI on request from the user"""
+        if self.get_trump in self.trump_data.pack_slaves():
+            self.get_trump.pack_forget()
+        self.cur_trump['image'] = \
+            self.__suit_imgs[self.active_round.ask_trump(self.active_player)]
+        self.cur_trump.pack(expand=True)
+
+    def update_trump(self, trump):
+        """Updates the opened trump in the GUI when trump is opened by a bot"""
+        self.cur_trump['image'] = self.__suit_imgs[trump]
+        self.cur_trump.pack(expand=True)
+
+    def show_get_trump(self):
+        """Displays the button to request for trump"""
+        if self.cur_trump in self.trump_data.pack_slaves():
+            print("Error")
+            exit()
+        self.get_trump.pack(expand=True)
 
     def _start_round(self):
         """
@@ -279,6 +311,9 @@ class GameGUI:
         """
         self.start_round.place_forget()
         self.round = ManageRound(self, self.game_sess)
+        self.start_round.place(
+                               anchor='se', relwidth=0.1,
+                               relheight=0.05, relx=0.975, rely=1)
 
     def update_round_no(self, no):
         """Updates round number on the screen"""
@@ -293,11 +328,20 @@ class GameGUI:
         self.cur_wager_plr['text'] = "Player "+plr
         self.cur_wager_plr['foreground'] = team[1]
 
-    def _play_card(self, player, card):
-        self.plr_cards[player][card].pack_forget()
+    def _play_card(self, obj, card):
+        """
+        Delete the card played by the user from the GUI and
+        return the card details to the program
+        """
+        obj.pack_forget()
+        obj.destroy()
+        self.usr_card = card
+        self.usr_sel_done.set(True)
 
     def display_cards(self):
+        """Display the cards in the game screeen"""
         start = self.game_sess.start_player
+        self.played_cards = []
         count = 0
         no_cards = self.game_sess.rounds[-1].no_passes
         blvar = tk.BooleanVar()
@@ -310,14 +354,15 @@ class GameGUI:
                     if (not plr.user_control or
                             (self.game_mode != "User vs Bots")):
                         self.plr_cards[i].append(tk.Label(
-                                                        self.plr_space[i],
-                                                        image=self.card_back))
+                                                    self.plr_space[i],
+                                                    image=self.__card_back))
                     else:
                         self.plr_cards[i].append(tk.Button(
                                         self.plr_space[i],
                                         image=self.__card_imgs[plr.cards[j]]))
                         self.plr_cards[i][j]['command'] = \
-                            lambda plr=i, cd=j: self._play_card(plr, cd)
+                            lambda obj=self.plr_cards[i][j], cd=plr.cards[j]: \
+                            self._play_card(obj, cd)
                         self.plr_cards[i][j]['state'] = 'disabled'
                     self.plr_cards[i][j].pack(
                                             side=tk.LEFT,
@@ -337,29 +382,131 @@ class GameGUI:
             count = count+1
 
     def _load_cards(self):
-        """
-        loads the image of the card
-        """
+        """Loads the image of the card"""
         size = self.card_size[self.plr_count]
         for suit in self.game_sess.suits_map:
             for key in self.game_sess.key_map:
-                self.__card_imgs[(suit, key)] = tk.PhotoImage(
-                                    name=suit + ' ' + key,
-                                    file='cards\\' + suit + '\\' +
-                                    suit[0]+key+'.png').subsample(size, size)
-        self.card_back = tk.PhotoImage(
-                            name='back',
-                            file='cards\\misc\\' +
-                            'gray_back.png').subsample(size, size)
+                path_ = 'cards\\' + suit + '\\' + suit[0]+key+'.png'
+                self.__card_imgs[(suit, key)] = ImageTk.PhotoImage(
+                        Image.open(path_).resize(size, Image.ANTIALIAS))
+        self.__card_back = ImageTk.PhotoImage(Image.open(
+                                'cards\\misc\\gray_back.png').resize(
+                                        size, Image.ANTIALIAS))
+        self.__card_back = (self.__card_back)
+        for suit in self.game_sess.suits_map:
+            self.__suit_imgs[suit] = ImageTk.PhotoImage(Image.open(
+                                        'cards\\suits\\'+suit+'.png').resize(
+                                            (70, 85), Image.ANTIALIAS))
 
-    def get_user_play_card(self, plr_index):
+    def update_bot_play(self, card_data):
         """
-        Recieves the card to player by user
+        Updates the GUI when the bot plays a card
         """
-        pass
+        plr_index = card_data[0]
+        card = card_data[1]
+        self.plr_cards[plr_index].pop().pack_forget()
+        self.played_cards.append(tk.Label(
+                                          self.__cur_frame,
+                                          image=self.__card_imgs[card]))
+        self.played_cards[-1].place(
+                        anchor=tk.CENTER,
+                        relx=0.5+self.card_loc[self.plr_count][plr_index][0],
+                        rely=0.5+self.card_loc[self.plr_count][plr_index][1])
 
-    def post_pass_update(self, round):
+    def get_user_play_card(self, plr_index, round_, plr):
+        """
+        Recieves the card to play from the user
+        """
+        self.active_player = plr_index
+        self.active_round = round_
+        no_suit = True
+        if self.game_mode == "User vs Bots":
+            for suit, _ in self.game_sess.players[plr_index].cards:
+                if suit == round_.suit_in_play or not round_.suit_in_play:
+                    no_suit = False
+                    break
+        if (self.game_mode == "Bot vs Users" or
+                (no_suit and not round_.trump_open)):
+            self.show_get_trump()
+        self.usr_card = None
+        self.usr_sel_done = tk.BooleanVar()
+        self.usr_sel_done.set(False)
+        no_match_suit = True
+        # Enable cards matching with current suit in play
+        for i, card_obj in enumerate(self.plr_cards[plr_index]):
+            if ((not round_.suit_in_play and
+                    (plr.cards[i][0] != round_.trump or round_.trump_open
+                     or not plr.stake_player))
+                    or plr.cards[i][0] == round_.suit_in_play):
+                card_obj['state'] = 'normal'
+                no_match_suit = False
+        # If there is no matching card enable all cards
+        if no_match_suit:
+            for card_obj in self.plr_cards[plr_index]:
+                card_obj['state'] = 'normal'
+        self.root.wait_variable(self.usr_sel_done)
+        # Delete the played card from the player object and the GUI card list
+        for i, card in enumerate(plr.cards):
+            if card == self.usr_card:
+                plr.cards = plr.cards[:i] + plr.cards[i+1:]
+                self.plr_cards[plr_index] = \
+                    self.plr_cards[plr_index][:i] + \
+                    self.plr_cards[plr_index][i+1:]
+                break
+        for card_obj in self.plr_cards[plr_index]:
+            card_obj['state'] = 'disabled'
+        # Display the played card in the played cards area
+        self.played_cards.append(tk.Label(
+                                        self.__cur_frame,
+                                        image=self.__card_imgs[self.usr_card]))
+        self.played_cards[-1].place(
+                        anchor=tk.CENTER,
+                        relx=0.5+self.card_loc[self.plr_count][plr_index][0],
+                        rely=0.5+self.card_loc[self.plr_count][plr_index][1])
+        # Disable show get trump
+        if self.get_trump in self.trump_data.pack_slaves():
+            self.get_trump.pack_forget()
+        return self.usr_card
+
+    def post_pass_update(self, round_):
         """
         Updates the GUI based on the latest pass of the round
         """
-        pass
+        for card in self.played_cards:
+            card.place_forget()
+            card.destroy()
+        self.played_cards = []
+        self.rnd_pts[0]['text'] = round_.team_pts[0]
+        self.rnd_pts[1]['text'] = round_.team_pts[1]
+
+    def post_round_update(self, round_):
+        """
+        Updates the GUI based on the latest round
+        """
+        for index in range(len(self.plr_cards)):
+            for card_obj in self.plr_cards[index]:
+                card_obj.pack_forget()
+                card_obj.destroy()
+        self.cur_wager_team['text'] = "---"
+        self.cur_wager_team['foreground'] = None
+        self.cur_wager_pts['text'] = "---"
+        self.cur_wager_plr['text'] = "---"
+        self.cur_wager_plr['foreground'] = None
+        self.rnd_pts[0]['text'] = "---"
+        self.rnd_pts[1]['text'] = "---"
+        # Display score
+        if self.game_sess.score[0] == [None, None]:
+            if self.sb_team_lbl in self.scoreboard.grid_slaves():
+                self.sb_team_lbl.grid_forget()
+            self.sb_pt_lbl.grid(column=0, row=0, sticky=(tk.N, tk.S))
+            self.sb_pt_lbl['text'] = 0
+        else:
+            self.sb_team_lbl['text'] = "Team " + \
+                self.game_sess.teams[self.game_sess.score[0][0]][0]
+            self.sb_team_lbl['foreground'] = \
+                self.game_sess.teams[self.game_sess.score[0][0]][1]
+            self.sb_pt_lbl['text'] = self.game_sess.score[0][1]
+            self.sb_team_lbl.grid(column=0, row=0, sticky=(tk.N, tk.S))
+            self.sb_pt_lbl.grid(column=0, row=1, sticky=(tk.N, tk.S))
+        if self.cur_trump in self.trump_data.pack_slaves():
+            self.cur_trump.pack_forget()

@@ -29,7 +29,7 @@ class SelectDialog():
         msg_frame.pack(fill='both', expand=True)
 
         label = tk.Label(msg_frame, text=text)
-        label.grid(row=0, column=0, padx=4, pady=4)
+        label.grid(row=0, column=0, columnspan=3, padx=4, pady=4)
 
         ok_btn = tk.Button(msg_frame, text="Ok", width=5, height=1)
 
@@ -41,7 +41,7 @@ class SelectDialog():
                                               msg_frame, text=value,
                                               variable=self.check_var[i]))
                 choices[-1].deselect()
-                choices[-1].grid(row=i, column=0)
+                choices[-1].grid(row=i, column=1, pady=2, sticky=(tk.W))
             ok_btn['command'] = lambda: self._cb_submit(result)
         else:
             self.var = tk.StringVar()
@@ -50,11 +50,11 @@ class SelectDialog():
                                               msg_frame, text=value,
                                               variable=self.var,
                                               value=value, indicatoron=True))
-                choices[-1].grid(row=i, column=0)
+                choices[-1].grid(row=i, column=1, pady=2, sticky=(tk.W))
             self.var.set(options[0])
             ok_btn['command'] = lambda: self._rb_submit(result)
 
-        ok_btn.grid(row=len(options)+1, column=0)
+        ok_btn.grid(row=len(options)+1, column=1, pady=2)
 
         self.top.transient(self.root)
         self.top.grab_set()
