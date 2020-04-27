@@ -1,4 +1,5 @@
 import tkinter as tk
+import os
 from tkinter import ttk, Menu
 from tkinter import messagebox as msg
 from game import GameSession
@@ -6,6 +7,8 @@ from roundhandler import ManageRound
 from popups import SelectDialog
 from PIL import Image
 from PIL.ImageTk import PhotoImage
+
+img_path = os.path.dirname(__file__) + '/../cards'
 
 
 class GameGUI:
@@ -429,16 +432,16 @@ class GameGUI:
         for suit in self.game_sess.suits_map:
             for key in self.game_sess.key_map:
                 # Load the cards
-                path_ = 'cards\\' + suit + '\\' + suit[0]+key+'.png'
+                path_ = img_path+'\\' + suit + '\\' + suit[0]+key+'.png'
                 self.__card_imgs[(suit, key)] = PhotoImage(
                         Image.open(path_).resize(size, Image.ANTIALIAS))
         # Load the back of the cards
-        path_ = 'cards\\misc\\gray_back.png'
+        path_ = img_path+'\\misc\\gray_back.png'
         self.__card_back = PhotoImage(Image.open(
                                     path_).resize(size, Image.ANTIALIAS))
         # Load the images of the suits
         for suit in self.game_sess.suits_map:
-            path_ = 'cards\\suits\\'+suit+'.png'
+            path_ = img_path+'\\suits\\'+suit+'.png'
             self.__suit_imgs[suit] = PhotoImage(Image.open(path_).resize(
                                                 (70, 85), Image.ANTIALIAS))
 
