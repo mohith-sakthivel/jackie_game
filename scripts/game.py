@@ -47,7 +47,9 @@ class GameSession:
         assert no_players in self.allowed_players, "Invalid number of players"
         assert teams is None or len(teams) == 2, "Invalid teams input"
         self.no_players = no_players
+        self.team_plrs = [[], []]
         self.players = []
+        self.start_plr_list = [i for i in range(no_players)]
         self.start_player = None
         self.no_rounds = 0
         self.rounds = []
@@ -68,6 +70,7 @@ class GameSession:
                                        self.teams[i % 2],
                                        self))
             self.plr_dict[chr(ord('A') + i)] = i
+            self.team_plrs[i % 2].append(i)
 
     def set_user_player(self, is_user):
         """
@@ -104,21 +107,31 @@ class GameSession:
         """
         self.start_player = self.plr_dict[ID]
 
-    def update_score(self, wager_team, wager, outcome):
+    def update_score(self, wager_team, wager, outcome, goat, open_goat):
         """
         Update the game score with the round results
         """
         if outcome == 'N':
-            self.clear_plr_data()
+            self.post_round_process()
             return
-        # Find points for the set wager
-        if wager >= 20:
-            pts = 2
+        if open_goat:
+            # Process points for open goat
+            if outcome == 'W':
+                pts = 4
+            else:
+                pts = -8
         else:
-            pts = 1
-        # Update points based on win/loss
-        if outcome == 'L':
-            pts = - (pts+1)
+            # Find points for the set wager
+            if wager >= 20:
+                pts = 2
+            else:
+                pts = 1
+            # Check for goat
+            if goat:
+                pts = pts+1
+            # Update points based on win/loss
+            if outcome == 'L':
+                pts = - (pts+1)
         # Check what team is used in current score
         if self.score[0] == [None, None]:
             self.score[0] = [wager_team, 0]
@@ -136,12 +149,21 @@ class GameSession:
             self.score[0] = [None, None]
         elif self.score[0][1] == 0:
             self.score[0] = [None, None]
-        self.clear_plr_data()
+        self.post_round_process()   # Do post round cleanup
 
-    def clear_plr_data(self):
+    def post_round_process(self):
+        """Does post processing after a round is over"""
+        # Set the choices for the next starting player
+        self.start_player = None
+        if self.score[0][0]:
+            self.start_plr_list = self.team_plrs[(self.score[0][0]+1) % 2]
+        # Clear the values stored in the player classses
         for plr in self.players:
-            plr.cards = []
-            self.stake_player = False
+            plr.clear_round_data()
+
+    def select_start_player(self):
+        """Selects a random start player from the available choices"""
+        self.start_player = np.random.choice(self.start_plr_list)
 
 
 class Round:
@@ -163,9 +185,11 @@ class Round:
         self.session = game
         self.wager = self.session.base_bet[self.session.no_players]
         self.open_goat = False
+        self.goat = False
         self.wager_player = self.session.start_player
         self.wager_team = self.session.players[self.wager_player].team
         self.wager_team = self.session.teams_dict[self.wager_team]
+        self.wager_history = [(self.wager, self.wager_player, self.wager_team)]
         self.start_player = self.session.start_player
         self.next_player = self.session.start_player
         self.trump = None
@@ -188,8 +212,12 @@ class Round:
         if wager == "Open Goat":
             self.wager = 28
             self.open_goat = True
+            self.start_player = self.wager_player
+            self.next_player = self.start_player
         else:
             self.wager = wager
+        self.wager_history.append(
+            (self.wager, self.wager_player, self.wager_team))
 
     def get_wager_data(self):
         """
@@ -206,6 +234,33 @@ class Round:
         Return the player who holds the current wager
         """
         return self.session.players[self.wager_player].ID
+
+    def ask_trump(self, plr_index):
+        """Return the trump of the current round"""
+        if not self.trump_open:
+            self.trump_open_at = (self.passes_done+1, plr_index)
+            self.trump_open = True
+        return self.trump
+
+    def set_goat(self):
+        """Player chooses to go for goat"""
+        assert self.team_pts[(self.wager_team+1) % 2] == 0, \
+            "Invalid conditions to go for goat"
+        self.goat = True
+
+    def set_play_card(self, plr_index, card):
+        """Recieves the card played by the user"""
+        assert plr_index == self.next_player, "Wrong player has played"
+        assert card[0] in self.session.suits_map, "Invalid card"
+        assert card[1] in self.session.key_map, "Invalid card"
+        if not self.play_history[-1]:
+            self.suit_in_play = card[0]
+        self.play_history[-1].append((plr_index, card))
+        # Set the next player to play
+        if len(self.play_history[-1]) < self.session.no_players:
+            self.next_player = (self.next_player + 1) % self.session.no_players
+        else:
+            self.next_player = None
 
     def process_pass(self):
         """
@@ -234,6 +289,7 @@ class Round:
                      self.suit_in_play == self.trump)):
                 max_card = card_data
                 max_val = card_val
+            # Add {not self.open_goat} to disable trump in open goat games
             elif (trump_used and card_data[1][0] == self.trump):
                 if (max_card[1][0] != self.trump or card_val > max_val):
                     max_card = card_data
@@ -253,16 +309,32 @@ class Round:
         if ((max(self.team_trumps) == len(self.session.key_map)) or
                 ((self.suit_in_play == self.trump)
                     and (min(self.team_trumps) == 0))):
-            self.session.update_score(self.wager_team, self.wager, 'N')
+            self.session.update_score(
+                                      self.wager_team, self.wager, 'N',
+                                      self.goat, self.open_goat)
             return (True, 'N')
+        # Check condition for open goat
+        if self.open_goat and max_card[0] != self.wager_player:
+            self.session.update_score(
+                                      self.wager_team, self.wager, 'L',
+                                      self.goat, self.open_goat)
+            return (True, 'L')
         # Check if game is over
         for i in range(2):
-            if i == self.wager_team and self.team_pts[i] >= self.wager:
-                self.session.update_score(self.wager_team, self.wager, 'W')
+            if (i == self.wager_team and
+                ((self.team_pts[i] >= self.wager and not self.goat
+                    and self.team_pts[(i+1) % 2] > 0)
+                 or (self.team_pts[i] == self.session.total_points))):
+                self.session.update_score(
+                                          self.wager_team, self.wager,
+                                          'W', self.goat, self.open_goat)
                 return (True, 'W')
             elif (i != self.wager_team and
-                    (self.session.total_points-self.team_pts[i]) < self.wager):
-                self.session.update_score(self.wager_team, self.wager, 'L')
+                  ((self.team_pts[i] > 0 and self.goat) or
+                   (self.session.total_points-self.team_pts[i]) < self.wager)):
+                self.session.update_score(
+                                          self.wager_team, self.wager,
+                                          'L', self.goat, self.open_goat)
                 return (True, 'L')
         # Process variables for the next pass
         self.play_history.append([])
@@ -270,26 +342,6 @@ class Round:
         self.next_player = max_card[0]
         self.suit_in_play = None
         return result
-
-    def set_play_card(self, plr_index, card):
-        """Recieves the card played by the user"""
-        assert plr_index == self.next_player, "Wrong player has played"
-        assert card[0] in self.session.suits_map, "Invalid card"
-        assert card[1] in self.session.key_map, "Invalid card"
-        if not self.play_history[-1]:
-            self.suit_in_play = card[0]
-        self.play_history[-1].append((plr_index, card))
-        if len(self.play_history[-1]) < self.session.no_players:
-            self.next_player = (self.next_player + 1) % self.session.no_players
-        else:
-            self.next_player = None
-
-    def ask_trump(self, plr_index):
-        """Return the trump of the current round"""
-        if not self.trump_open:
-            self.trump_open_at = (self.passes_done+1, plr_index)
-            self.trump_open = True
-        return self.trump
 
 
 class Player:
@@ -324,39 +376,59 @@ class Player:
         """
         self.cards.append(card)
 
-    def get_wager(self):
+    def get_wager(self, wager_history):
         """
         Return a wager when requested
         """
-        return False, None
-
-    def get_trump(self):
-        """
-        Gets the trump suit from the player
-        """
+        # Need advanced algorithms
+        # Go for goat
         suit_count = [0] * len(self.session.suits_map)
         for card in self.cards:
             suit_count[self.session.suits[card[0]]] += \
                 self.session.point_table[card[1]]
         max_suit = suit_count.index(max(suit_count))
-        return self.session.suits_map[max_suit]
+        self.trump_choice = self.session.suits_map[max_suit]
+        return False, None
+
+    def set_wager_player(self):
+        """set the player as the wager player in the current round"""
+        self.stake_player = True
+
+    def get_trump(self):
+        """
+        Gets the trump suit from the player
+        """
+        try:
+            return self.trump_choice
+        except NameError:
+            print("Player not given a chance to set wager")
+            raise
 
     def get_play_card(self, round_):
         """
         Select the card to play for the current round
         """
+        # Need advanced algorithms
         if not round_.play_history[-1]:
-            return self.cards.pop()
+            round_.set_play_card(self.index, self.cards.pop())
+            return
         for i, card in enumerate(self.cards):
             if card[0] == round_.suit_in_play:
                 self.cards = self.cards[:i] + self.cards[i+1:]
-                return card
+                round_.set_play_card(self.index, card)
+                return
         trump_suit = round_.ask_trump(self.index)
         for i, card in enumerate(self.cards):
             if card[0] == trump_suit:
                 self.cards = self.cards[:i] + self.cards[i+1:]
-                return card
-        return self.cards.pop()
+                round_.set_play_card(self.index, card)
+                return
+        round_.set_play_card(self.index, self.cards.pop())
+
+    def clear_round_data(self):
+        """Clear data related to specific round"""
+        self.cards = []
+        self.stake_player = False
 
 
 def deal_cards(session):

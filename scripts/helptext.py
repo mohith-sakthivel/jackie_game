@@ -39,7 +39,7 @@ def help_text(widget, text):
     def enter(event):
         try:
             toolTip.show_tip(text)
-        except:
+        except ValueError:  # Check error type
             pass
 
     def leave(event):

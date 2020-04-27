@@ -24,15 +24,16 @@ class SelectDialog():
         self.root = root
         self.top = tk.Toplevel(self.root)
         choices = []
-
+        # Create frame for message
         msg_frame = tk.Frame(self.top, borderwidth=5, relief='ridge')
         msg_frame.pack(fill='both', expand=True)
-
+        # Create label for the message
         label = tk.Label(msg_frame, text=text)
         label.grid(row=0, column=0, columnspan=3, padx=4, pady=4)
-
+        # Create button to submit
         ok_btn = tk.Button(msg_frame, text="Ok", width=5, height=1)
-
+        ok_btn.grid(row=len(options)+1, column=1, pady=2)
+        # Create the widgets for user choices
         if op_type == 'checkbox':
             self.check_var = []
             for i, value in enumerate(options, 1):
@@ -53,18 +54,18 @@ class SelectDialog():
                 choices[-1].grid(row=i, column=1, pady=2, sticky=(tk.W))
             self.var.set(options[0])
             ok_btn['command'] = lambda: self._rb_submit(result)
-
-        ok_btn.grid(row=len(options)+1, column=1, pady=2)
-
+        # Put window on top
         self.top.transient(self.root)
         self.top.grab_set()
 
     def _cb_submit(self, result):
+        """Call back for Ok button for checkbox input"""
         for var in self.check_var:
             result.append(var.get() == 1)
         self.top.destroy()
 
     def _rb_submit(self, result):
+        """Call back for Ok button for radiobutton input"""
         result.append(self.var.get())
         self.top.destroy()
 
@@ -78,28 +79,29 @@ class GetNumInput():
         assert len(range_) != 0, "Empty choice list!"
         self.root = root
         self.top = tk.Toplevel(self.root)
-
+        # Create frame for message
         msg_frame = tk.Frame(self.top, borderwidth=5, relief='ridge')
         msg_frame.pack(fill='both', expand=True)
-
+        # Create label for the message
         label = tk.Label(msg_frame, text=text)
         label.pack(padx=4, pady=4)
-
+        # Create combobox for user choices
         self.usr_input = tk.StringVar()
         choices = ttk.Combobox(
                                msg_frame, textvariable=self.usr_input,
                                values=range_, state="readonly")
         choices.current(0)
         choices.pack()
-
+        # Create button to submit
         ok_btn = tk.Button(msg_frame, text="Ok", width=5, height=1)
         ok_btn['command'] = lambda: self._choice_submit(result)
         ok_btn.pack(side=tk.BOTTOM, padx=4, pady=4)
-
+        # Put window on top
         self.top.transient(self.root)
         self.top.grab_set()
 
     def _choice_submit(self, result):
+        """Call back for Ok button"""
         try:
             result.append(int(self.usr_input.get()))
         except ValueError:
