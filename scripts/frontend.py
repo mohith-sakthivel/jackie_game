@@ -8,8 +8,6 @@ from popups import SelectDialog
 from PIL import Image
 from PIL.ImageTk import PhotoImage
 
-img_path = os.path.dirname(__file__) + '/../cards'
-
 
 class GameGUI:
     """
@@ -33,6 +31,7 @@ class GameGUI:
                 8: ((-0.175, 0), (-0.08, -0.1), (0, -0.1), (0.08, -0.1),
                     (0.175, 0), (0.08, 0.1), (0, 0.1), (-0.08, 0.1))}
 
+    img_path = os.path.dirname(__file__) + '/../cards'
     game_mode_options = ("Bot vs Users", "User vs Bots", "Bots Only")
 
     def __init__(self):
@@ -432,16 +431,16 @@ class GameGUI:
         for suit in self.game_sess.suits_map:
             for key in self.game_sess.key_map:
                 # Load the cards
-                path_ = img_path+'\\' + suit + '\\' + suit[0]+key+'.png'
+                path_ = self.img_path+'\\' + suit + '\\' + suit[0]+key+'.png'
                 self.__card_imgs[(suit, key)] = PhotoImage(
                         Image.open(path_).resize(size, Image.ANTIALIAS))
         # Load the back of the cards
-        path_ = img_path+'\\misc\\gray_back.png'
+        path_ = self.img_path+'\\misc\\gray_back.png'
         self.__card_back = PhotoImage(Image.open(
                                     path_).resize(size, Image.ANTIALIAS))
         # Load the images of the suits
         for suit in self.game_sess.suits_map:
-            path_ = img_path+'\\suits\\'+suit+'.png'
+            path_ = self.img_path+'\\suits\\'+suit+'.png'
             self.__suit_imgs[suit] = PhotoImage(Image.open(path_).resize(
                                                 (70, 85), Image.ANTIALIAS))
 
@@ -492,10 +491,10 @@ class GameGUI:
             for card_obj in self.plr_cards[plr_index]:
                 card_obj['state'] = 'normal'
         # Enable goat option if conditions apply
-        plr_team = self.game_sess.teams_dict[plr.team]
+        plr_team = plr.team[2]
         if (not round_.suit_in_play and plr_team == round_.wager_team and
                 round_.team_pts[(plr_team+1) % 2] == 0 and
-                not round_.open_goat):
+                not round_.open_goat and not round_.goat):
             self.goat_btn['command'] = lambda rnd=round_: self.go_for_goat(rnd)
             self.goat_btn['state'] = 'normal'
         self.root.wait_variable(self.usr_sel_done)

@@ -1,7 +1,7 @@
 import vision
 from tkinter import messagebox as msg
 from popups import GetNumInput, SelectDialog
-from game import deal_cards
+from game import deal_cards_after_jack
 
 
 class ManageRound():
@@ -26,7 +26,7 @@ class ManageRound():
         self.__game_sess.start_round()
         self.__round = self.__game_sess.rounds[-1]
         self.__gui.update_round_no(self.__game_sess.no_rounds)
-        deal_cards(self.__game_sess)
+        deal_cards_after_jack(self.__game_sess)
         self.__gui.display_cards()
         self._run_wager_round()
         self._start_play()
