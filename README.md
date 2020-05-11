@@ -35,7 +35,6 @@ Rules:
     - The player who captures the round plays the first card of the next round
     - The team wins by getting the at least as much points as made in the bid
 
-Additional Functionality:
+Additional/Pending Functionality:
     1. Give choice to ask the wager team if they want to declare a win or go for a goat
-    2. Give a J when a team loses a complete game
-    3. Set aside a card as trump until trump is opened
+    2. Set aside a card as trump until trump is opened

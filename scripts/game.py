@@ -37,7 +37,7 @@ class GameSession:
     suits_map = ("Spade", "Heart", "Club", "Diamond")
     key_map = ("Q", "K", "10", "A", "9", "J")
 
-    def __init__(self, no_players, teams=None):
+    def __init__(self, no_players, player_names=None, teams=None):
         """
         Constructor for the game_session class
 
@@ -46,30 +46,37 @@ class GameSession:
         """
         assert no_players in self.allowed_players, "Invalid number of players"
         assert teams is None or len(teams) == 2, "Invalid teams input"
+        assert player_names is None or len(player_names) == no_players, \
+            "Invalid player names list"
         self.no_players = no_players
-        self.team_plrs = [[], []]
-        self.players = []
+        # Players and teams
+        self.team_plrs = [[], []]   # contains index of players in respt teams
+        if player_names is None:
+            self.player_names = \
+                [chr(ord('A') + i) for i in range(self.no_players)]
+        else:
+            self.player_names = player_names
+        # team format - (name, color, index)
+        if teams is None:
+            self.teams = (('Red', 'Red', 0), ('Blue', 'Blue', 1))
+        else:
+            self.teams = teams
+        # Game related variables
         self.start_plr_list = [i for i in range(no_players)]
         self.start_player = None
         self.no_rounds = 0
         self.rounds = []
+        # score - [[team idx, pts], [team 1 no cont jack, team 2 no cont jack]]
         self.score = [[None, None], [0, 0]]
-        self.plr_dict = {}
-        # team format - (name, color)
-        if teams is None:
-            self.teams = (('Red', 'Red'), ('Blue', 'Blue'))
-        else:
-            self.teams = teams
-        self.teams_dict = {}
-        for i, team_data in enumerate(self.teams):
-            self.teams_dict[team_data] = i
+        self.jackie_given = False
+        self.plr_dict = {}      # Maps player names to index
+        # Create player agents in the game
+        self.players = []
         for i in range(self.no_players):
-            # Create the player objects
             self.players.append(Player(
-                                       chr(ord('A') + i), i,
-                                       self.teams[i % 2],
-                                       self))
-            self.plr_dict[chr(ord('A') + i)] = i
+                                       self.player_names[i], i,
+                                       self.teams[i % 2], self))
+            self.plr_dict[self.player_names[i]] = i
             self.team_plrs[i % 2].append(i)
 
     def set_user_player(self, is_user):
@@ -111,9 +118,10 @@ class GameSession:
         """
         Update the game score with the round results
         """
+        self.jackie_given = False
         if outcome == 'N':
             self.post_round_process()
-            return
+            self.post_round_process()
         if open_goat:
             # Process points for open goat
             if outcome == 'W':
@@ -145,8 +153,11 @@ class GameSession:
             self.score[0][1] = -self.score[0][1]
         # Fine tune score
         if self.score[0][1] <= -8:
-            self.score[1][(self.score[0][0]+1) % 2] += 1
+            if (self.score[1][(self.score[0][0]+1) % 2] != 0):
+                self.score[1][(self.score[0][0]+1) % 2] = 0
+            self.score[1][self.score[0][0]] += 1
             self.score[0] = [None, None]
+            self.jackie_given = True
         elif self.score[0][1] == 0:
             self.score[0] = [None, None]
         self.post_round_process()   # Do post round cleanup
@@ -155,8 +166,11 @@ class GameSession:
         """Does post processing after a round is over"""
         # Set the choices for the next starting player
         self.start_player = None
-        if self.score[0][0]:
+        if self.score[0][0] is not None:
             self.start_plr_list = self.team_plrs[(self.score[0][0]+1) % 2]
+        elif self.jackie_given:
+            self.start_plr_list = \
+                self.team_plrs[self.score[1].index(max(self.score[1]))]
         # Clear the values stored in the player classses
         for plr in self.players:
             plr.clear_round_data()
@@ -187,8 +201,7 @@ class Round:
         self.open_goat = False
         self.goat = False
         self.wager_player = self.session.start_player
-        self.wager_team = self.session.players[self.wager_player].team
-        self.wager_team = self.session.teams_dict[self.wager_team]
+        self.wager_team = self.session.players[self.wager_player].team[2]
         self.wager_history = [(self.wager, self.wager_player, self.wager_team)]
         self.start_player = self.session.start_player
         self.next_player = self.session.start_player
@@ -207,8 +220,7 @@ class Round:
         Updates the new wager
         """
         self.wager_player = self.session.plr_dict[Player_ID]
-        self.wager_team = self.session.players[self.wager_player].team
-        self.wager_team = self.session.teams_dict[self.wager_team]
+        self.wager_team = self.session.players[self.wager_player].team[2]
         if wager == "Open Goat":
             self.wager = 28
             self.open_goat = True
@@ -296,14 +308,12 @@ class Round:
                     max_val = card_val
                     trump_used = True
         # Add points to the team that captured the round
-        team_index = \
-            self.session.teams_dict[self.session.players[max_card[0]].team]
+        team_index = self.session.players[max_card[0]].team[2]
         for card_data in self.play_history[-1]:
             self.team_pts[team_index] += \
                 self.session.point_table[card_data[1][1]]
             if card_data[1][0] == self.trump:
-                team_idx = self.session.teams_dict[
-                    self.session.players[card_data[0]].team]
+                team_idx = self.session.players[card_data[0]].team[2]
                 self.team_trumps[team_idx] += 1
         # Check if one team has all trumps
         if ((max(self.team_trumps) == len(self.session.key_map)) or
@@ -409,21 +419,35 @@ class Player:
         Select the card to play for the current round
         """
         # Need advanced algorithms
+        avl_choices = []
+        # Player to start the round
         if not round_.play_history[-1]:
-            round_.set_play_card(self.index, self.cards.pop())
-            return
-        for i, card in enumerate(self.cards):
-            if card[0] == round_.suit_in_play:
-                self.cards = self.cards[:i] + self.cards[i+1:]
-                round_.set_play_card(self.index, card)
-                return
-        trump_suit = round_.ask_trump(self.index)
-        for i, card in enumerate(self.cards):
-            if card[0] == trump_suit:
-                self.cards = self.cards[:i] + self.cards[i+1:]
-                round_.set_play_card(self.index, card)
-                return
-        round_.set_play_card(self.index, self.cards.pop())
+            for i, card in enumerate(self.cards):
+                if (card[0] != round_.trump or not self.stake_player
+                        or round_.trump_open):
+                    avl_choices.append((i, card))
+        # Player who has card to play to the round
+        else:
+            for i, card in enumerate(self.cards):
+                if card[0] == round_.suit_in_play:
+                    avl_choices.append((i, card))
+        # Player who is asking for trump and will have trump
+        if len(avl_choices) == 0 and len(round_.play_history[-1]) > 0:
+            trump_suit = round_.ask_trump(self.index)
+            for i, card in enumerate(self.cards):
+                if card[0] == trump_suit:
+                    avl_choices.append((i, card))
+        # Wager player and has no non-trump cards to start or
+        # player who requested for trump and had no trump
+        if len(avl_choices) == 0:
+            for i, card in enumerate(self.cards):
+                avl_choices.append((i, card))
+        # Make selection from available choices
+
+        card = avl_choices[0][1]
+        self.cards = (self.cards[:avl_choices[0][0]] +
+                      self.cards[avl_choices[0][0]+1:])
+        round_.set_play_card(self.index, card)
 
     def clear_round_data(self):
         """Clear data related to specific round"""
@@ -431,17 +455,43 @@ class Player:
         self.stake_player = False
 
 
-def deal_cards(session):
+def deal_cards_after_jack(session):
+    """Deals cards with jacks to the losing team"""
+    jack_order = [('Spade', 'J'), ('Heart', 'J'),
+                  ('Club', 'J'), ('Diamond', 'J')]
+    constraints = {}
+    if session.jackie_given:
+        constraints[session.start_player] = \
+            jack_order[:max(session.score[1])]
+    deal_cards(session, constraints)
+
+
+def deal_cards(session, constraints=None):
     """
         Deal cards to the players in the game
     """
     values = np.arange(24)
-    np.random.shuffle(values)
-    i = 0
+    cards_per_plr = int(24 / session.no_players)
+    if len(constraints) > 0:
+        indices = []
+        for plr_const in constraints.values():
+            for card in plr_const:
+                indices.append(session.suits[card[0]]*6 +
+                               session.heirarchy[card[1]])
+        mask = np.ones(len(values), dtype=bool)
+        mask[indices] = False
+        values = values[mask, ...]
     # Shuffle and deal cards to all the players
-    while i < 24:
-        for player in session.players:
-            player.add_card((
-                            session.suits_map[values[i] // 6],
-                            session.key_map[values[i] % 6]))
-            i = i + 1
+    np.random.shuffle(values)
+    for plr in session.players:
+        no_cards = cards_per_plr
+        if plr.index in constraints.keys():
+            no_cards -= len(constraints[plr.index])
+        for i in range(no_cards):
+            plr.add_card((
+                          session.suits_map[values[i] // 6],
+                          session.key_map[values[i] % 6]))
+        if no_cards < cards_per_plr:
+            for card in constraints[plr.index]:
+                plr.add_card(card)
+        values = values[no_cards:]
