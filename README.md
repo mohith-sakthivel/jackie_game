@@ -1,13 +1,14 @@
-Game Desciption:
+#Jackie - Card Game
+##Game Desciption:
 This project is a Tamil card game colloquially called as 'Jackie'. It is a variation of
 the relatively more popular '28' game from Kerala. I was unable to find solid literature 
 on the origin and rfules of the game. So a few rules have been programmed as per 
 popular consensus.
 
-Language:
+##Language:
     This project is programmed using python. Tkinter framework is used for frontend.
 
-Rules:
+##Rules:
     - Each game consists of two teams.
     - All players are seated/placed in a circle and every alternate player belong to the same team
     - The game is usually played with 4, 6 or 8 player
@@ -35,6 +36,6 @@ Rules:
     - The player who captures the round plays the first card of the next round
     - The team wins by getting the at least as much points as made in the bid
 
-Additional/Pending Functionality:
+##Additional/Pending Functionality:
     1. Give choice to ask the wager team if they want to declare a win or go for a goat
     2. Set aside a card as trump until trump is opened
