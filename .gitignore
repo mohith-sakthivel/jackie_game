@@ -1,1 +1,4 @@
 scripts/test.py
+.vscode/
+__pychache__/
+scripts/__pychache__

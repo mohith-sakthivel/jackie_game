@@ -2,7 +2,7 @@
 ## Game Desciption:
 This project is a Tamil card game colloquially called as 'Jackie'. It is a variation of
 the relatively more popular '28' game from Kerala. I was unable to find solid literature 
-on the origin and rfules of the game. So a few rules have been programmed as per 
+on the origin and rules of the game. So a few rules have been programmed as per 
 popular consensus.
 
 ## Language:
@@ -36,6 +36,8 @@ popular consensus.
     - The player who captures the round plays the first card of the next round
     - The team wins by getting the at least as much points as made in the bid
 
+## In Progress:
+    - AI game playing agent using deep RL and Monte Carlo Tree search
+
 ## Additional/Pending Functionality:
     1. Give choice to ask the wager team if they want to declare a win or go for a goat
-    2. Set aside a card as trump until trump is opened
